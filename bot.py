@@ -1,12 +1,15 @@
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+# Đặt múi giờ Việt Nam (GMT+7)
+vietnam_tz = timezone(timedelta(hours=7))
 
 # 5 nút đúng như ảnh bạn gửi
 main_keyboard = [
@@ -24,9 +27,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user = update.effective_user
-    now = datetime.now().strftime("%H:%M")
+    # Lấy giờ Việt Nam chính xác
+    now = datetime.now(vietnam_tz).strftime("%H:%M")
 
-    # Danh sách các nút hợp lệ
     valid_buttons = [
         "Đi ăn / 吃饭", "Hút thuốc / 抽烟",
         "Vệ sinh nặng / WC大", "Vệ sinh nhẹ / WC小",
@@ -34,7 +37,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     if text in valid_buttons:
-        # Hiển thị đúng như ảnh 2 của bạn
         response = (
             f"👤 {user.first_name} {user.last_name or ''}\n"
             f"🕐 {now} → {text}\n\n"
@@ -42,7 +44,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(response, reply_markup=reply_markup)
     else:
-        # Nếu gửi tin nhắn thường thì nhắc lại menu
         await update.message.reply_text("Vui lòng chọn nút bên dưới 👇", reply_markup=reply_markup)
 
 def main():
