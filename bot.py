@@ -8,10 +8,10 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-# Đặt múi giờ Việt Nam (GMT+7)
+# Giờ Việt Nam
 vietnam_tz = timezone(timedelta(hours=7))
 
-# 5 nút đúng như ảnh bạn gửi
+# 5 nút
 main_keyboard = [
     ["Đi ăn / 吃饭", "Hút thuốc / 抽烟"],
     ["Vệ sinh nặng / WC大", "Vệ sinh nhẹ / WC小"],
@@ -27,7 +27,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user = update.effective_user
-    # Lấy giờ Việt Nam chính xác
     now = datetime.now(vietnam_tz).strftime("%H:%M")
 
     valid_buttons = [
@@ -40,7 +39,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = (
             f"👤 {user.first_name} {user.last_name or ''}\n"
             f"🕐 {now} → {text}\n\n"
-            "Đã ghi nhận thành công!"
+            "Thành Công / 成功"   # ← đã đổi ở đây
         )
         await update.message.reply_text(response, reply_markup=reply_markup)
     else:
@@ -48,7 +47,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = Application.builder().token(TOKEN).concurrent_updates(True).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
