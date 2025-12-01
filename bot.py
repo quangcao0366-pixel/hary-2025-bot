@@ -39,7 +39,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = (
             f"👤 {user.first_name} {user.last_name or ''}\n"
             f"🕐 {now} → {text}\n\n"
-            "Thành Công / 成功"   # ← đã đổi ở đây
+            "✅ Thành Công / 成功 🎉"   # ← đã đổi thành dòng này
         )
         await update.message.reply_text(response, reply_markup=reply_markup)
     else:
