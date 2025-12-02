@@ -69,9 +69,9 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data[uid]["ongoing"] = {"action": text, "time": now.isoformat()}
         save_data(data)
 
-    # ← ĐÚNG 100% NHƯ BẠN MUỐN: 3 DÒNG HOÀN HẢO
+    # ← CHÍNH XÁC 100% NHƯ ẢNH BẠN GỬI: CÓ 1 DÒNG TRỐNG TRƯỚC "THÀNH CÔNG"
     await update.message.reply_text(
-        f"👤 {name}\n🕐 {time} → {text}\n🤖Thành Công / 成功 ✅",
+        f"👤 {name}\n🕐 {time} → {text}\n\n🤖Thành Công / 成功 ✅",
         reply_markup=kb
     )
 
