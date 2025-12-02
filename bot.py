@@ -11,6 +11,13 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 vietnam_tz = timezone(timedelta(hours=7))
 DATA_FILE = "attendance.json"
 
+TIME_LIMIT = {
+    "Đi ăn / 吃饭": 30,
+    "Hút thuốc / 抽烟": 15,
+    "Vệ sinh nặng / WC大": 15,
+    "Vệ sinh nhẹ / WC小": 5,
+}
+
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -32,8 +39,7 @@ reply_markup = ReplyKeyboardMarkup(main_keyboard, resize_keyboard=True, one_time
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    welcome = f"Chọn hành động của bạn 选择\n\n{user.first_name}"
-    await update.message.reply_text(welcome, reply_markup=reply_markup)
+    await update.message.reply_text(f"Chọn hành động của bạn 选择\n\n{user.first_name}", reply_markup=reply_markup)
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -44,66 +50,107 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_str = now.strftime("%H:%M")
     date_str = now.strftime("%Y-%m-%d")
 
-    valid_buttons = [
-        "Đi ăn / 吃饭", "Hút thuốc / 抽烟",
-        "Vệ sinh nặng / WC大", "Vệ sinh nhẹ / WC小",
-        "Đã quay lại / 回来了"
-    ]
+    if user_id not in data:
+        data[user_id] = {"name": username, "ongoing": None, "actions": {}, "overtimes": []}
+    data[user_id]["name"] = username
 
-    if text in valid_buttons:
-        if user_id not in data:
-            data[user_id] = {"name": username, "actions": {}}
-        if text not in data[user_id]["actions"]:
-            data[user_id]["actions"][text] = {"today": 0, "total": 0}
-        
-        if date_str not in data[user_id]["actions"][text]:
-            data[user_id]["actions"][text]["today"] = 0
-        
-        data[user_id]["actions"][text]["today"] += 1
-        data[user_id]["actions"][text]["total"] += 1
-        data[user_id]["name"] = username
+    # Bấm "Đã quay lại"
+    if text == "Đã quay lại / 回来了":
+        extra = ""
+        if data[user_id]["ongoing"]:
+            start_time = datetime.fromisoformat(data[user_id]["ongoing"]["time"])
+            minutes_used = int((now - start_time).total_seconds() / 60)
+            action = data[user_id]["ongoing"]["action"]
+            limit = TIME_LIMIT.get(action, 15)
+
+            if action not in data[user_id]["actions"]:
+                data[user_id]["actions"][action] = {"today": 0, "total": 0}
+            data[user_id]["actions"][action]["today"] += 1
+            data[user_id]["actions"][action]["total"] += 1
+
+            if minutes_used > limit:
+                over = minutes_used - limit
+                data[user_id]["overtimes"].append({"action": action, "over": over, "date": date_str})
+                extra = f"\nQuá giờ {over} phút!"
+            data[user_id]["ongoing"] = None
         save_data(data)
-
-        response = (
-            f"{username}\n"
-            f"{time_str} → {text}\n\n"
-            "Thành Công / 成功"
+        await update.message.reply_text(
+            f"{username}\n{time_str} → {text}\n\nThành Công / 成功",
+            reply_markup=reply_markup
         )
-        await update.message.reply_text(response, reply_markup=reply_markup)
+        return
 
-    elif text == "/thongke":
+    # Bấm các nút đi ra
+    if text in TIME_LIMIT:
+        data[user_id]["ongoing"] = {"action": text, "time": now.isoformat()}
+        save_data(data)
+        await update.message.reply_text(
+            f"{username}\n{time_str} → {text}\n\nThành Công / 成功",
+            reply_markup=reply_markup
+        )
+        return
+
+    # Các lệnh
+    if text == "/thongke":
         await thongke_command(update, context)
+    elif text == "/qua":
+        await qua_command(update, context)
     else:
         await update.message.reply_text("Vui lòng chọn nút bên dưới", reply_markup=reply_markup)
 
 async def thongke_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not data:
-        await update.message.reply_text("Chưa có dữ liệu!")
-        return
-
     today = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
-    lines = [f"Thống kê chấm công hôm nay ({today[:10]})\n"]
-
+    lines = [f"Thống kê chi tiết hôm nay ({today[8:10]}/{today[5:7]})\n"]
     total_today = 0
     for user_id, info in data.items():
         name = info["name"]
         lines.append(f"{name}")
         user_today = 0
-        for action, count in info["actions"].items():
-            today_count = count.get("today", 0)
-            total_count = count.get("total", 0)
-            lines.append(f"   {action} → {today_count} lần (tổng {total_count})")
-            user_today += today_count
+        for action, counts in info["actions"].items():
+            today_c = counts.get("today", 0)
+            total_c = counts.get("total", 0)
+            lines.append(f"   {action} → {today_c} lần (tổng {total_c})")
+            user_today += today_c
         lines.append(f"   → Tổng hôm nay: {user_today} lần\n")
         total_today += user_today
+    lines.append(f"TỔNG CỘNG MỌI NGƯỜI: {total_today} lần")
+    await update.message.reply_text("\n".join(lines) if data else "Chưa có dữ liệu")
 
-    lines.append(f"Tổng cộng mọi người hôm nay: {total_today} lần")
+async def qua_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    today = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
+    lines = [f"Cảnh báo quá giờ hôm nay ({today[8:10]}/{today[5:7]})\n"]
+    has = False
+    for user_id, info in data.items():
+        name = info["name"]
+        temp = []
+        if info.get("ongoing"):
+            start = datetime.fromisoformat(info["ongoing"]["time"])
+            mins = int((datetime.now(vietnam_tz) - start).total_seconds() / 60)
+            limit = TIME_LIMIT.get(info["ongoing"]["action"], 15)
+            if mins > limit:
+                temp.append(f"   {info['ongoing']['action']} → quá {mins - limit} phút (đang đi chưa về)")
+
+        over_today = [o for o in info.get("overtimes", []) if o["date"] == today]
+        for o in set([o["action"] for o in over_today]):
+            count = len([x for x in over_today if x["action"] == o])
+            over_min = sum(x["over"] for x in over_today if x["action"] == o) // count
+            temp.append(f"   {o} → quá giờ {count} lần")
+
+        if temp:
+            has = True
+            lines.append(f"{name}")
+            lines.extend(temp)
+            lines.append("")
+
+    if not has:
+        lines.append("Hôm nay mọi người đều đúng giờ!")
     await update.message.reply_text("\n".join(lines))
 
 def main():
     app = Application.builder().token(TOKEN).concurrent_updates(True).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("thongke", thongke_command))
+    app.add_handler(CommandHandler("qua", qua_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     port = int(os.environ.get("PORT", 10000))
