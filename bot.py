@@ -74,6 +74,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 extra = f"\nQuá giờ {over} phút!"
             data[user_id]["ongoing"] = None
         save_data(data)
+
         await update.message.reply_text(
             f"{username}\n{time_str} → {text}\n\nThành Công / 成功",
             reply_markup=reply_markup
@@ -90,13 +91,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Các lệnh
     if text == "/thongke":
         await thongke_command(update, context)
     elif text == "/qua":
         await qua_command(update, context)
-    else:
-        await update.message.reply_text("Vui lòng chọn nút bên dưới", reply_markup=reply_markup)
 
 async def thongke_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
@@ -128,12 +126,11 @@ async def qua_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mins = int((datetime.now(vietnam_tz) - start).total_seconds() / 60)
             limit = TIME_LIMIT.get(info["ongoing"]["action"], 15)
             if mins > limit:
-                temp.append(f"   {info['ongoing']['action']} → quá {mins - limit} phút (đang đi chưa về)")
+                temp.append(f"   {info['ongoing']['action']} → quá {mins - limit} phút (đang đi)")
 
         over_today = [o for o in info.get("overtimes", []) if o["date"] == today]
         for o in set([o["action"] for o in over_today]):
             count = len([x for x in over_today if x["action"] == o])
-            over_min = sum(x["over"] for x in over_today if x["action"] == o) // count
             temp.append(f"   {o} → quá giờ {count} lần")
 
         if temp:
