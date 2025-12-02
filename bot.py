@@ -54,7 +54,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data[user_id] = {"name": username, "ongoing": None, "actions": {}, "overtimes": []}
     data[user_id]["name"] = username
 
-    # Bấm "Đã quay lại"
+    # Xử lý "Đã quay lại"
     if text == "Đã quay lại / 回来了":
         extra = ""
         if data[user_id]["ongoing"]:
@@ -76,17 +76,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_data(data)
 
         await update.message.reply_text(
-            f"{username}\n{time_str} → {text}\n\nThành Công / 成功",
+            f"{username}\n🕐 {time_str} → {text}\n\nThành Công / 成功",
             reply_markup=reply_markup
         )
         return
 
-    # Bấm các nút đi ra
+    # Các nút đi ra
     if text in TIME_LIMIT:
         data[user_id]["ongoing"] = {"action": text, "time": now.isoformat()}
         save_data(data)
         await update.message.reply_text(
-            f"{username}\n{time_str} → {text}\n\nThành Công / 成功",
+            f"{username}\n🕐 {time_str} → {text}\n\nThành Công / 成功",
             reply_markup=reply_markup
         )
         return
@@ -98,7 +98,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def thongke_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
-    lines = [f"Thống kê chi tiết hôm nay ({today[8:10]}/{today[5:7]})\n"]
+    lines = [f"Thống kê chi tiết hôm nay ({today[8:10]}/{today[5:7]}/{today[:4]})\n"]
     total_today = 0
     for user_id, info in data.items():
         name = info["name"]
@@ -111,7 +111,7 @@ async def thongke_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_today += today_c
         lines.append(f"   → Tổng hôm nay: {user_today} lần\n")
         total_today += user_today
-    lines.append(f"TỔNG CỘNG MỌI NGƯỜI: {total_today} lần")
+    lines.append(f"TỔNG CỘNG: {total_today} lần")
     await update.message.reply_text("\n".join(lines) if data else "Chưa có dữ liệu")
 
 async def qua_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
