@@ -19,10 +19,11 @@ TIME_LIMIT = {
 }
 
 def load_data():
-    if os.path.exists(DATA_FILE):
+    try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {}
+    except:
+        return {}
 
 def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -45,7 +46,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user = update.effective_user
     user_id = str(user.id)
-    username = user.first_name + (f" {user.last_name}" if user.last_name else "")
+    username = f"{user.first_name}{' ' + user.last_name if user.last_name else ''}"
     now = datetime.now(vietnam_tz)
     time_str = now.strftime("%H:%M")
     date_str = now.strftime("%Y-%m-%d")
@@ -54,12 +55,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data[user_id] = {"name": username, "ongoing": None, "actions": {}, "overtimes": []}
     data[user_id]["name"] = username
 
-    # Xử lý "Đã quay lại"
+    # Đã quay lại
     if text == "Đã quay lại / 回来了":
-        extra = ""
         if data[user_id]["ongoing"]:
-            start_time = datetime.fromisoformat(data[user_id]["ongoing"]["time"])
-            minutes_used = int((now - start_time).total_seconds() / 60)
+            start = datetime.fromisoformat(data[user_id]["ongoing"]["time"])
+            mins = int((now - start).total_seconds() / 60)
             action = data[user_id]["ongoing"]["action"]
             limit = TIME_LIMIT.get(action, 15)
 
@@ -68,15 +68,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             data[user_id]["actions"][action]["today"] += 1
             data[user_id]["actions"][action]["total"] += 1
 
-            if minutes_used > limit:
-                over = minutes_used - limit
+            if mins > limit:
+                over = mins - limit
                 data[user_id]["overtimes"].append({"action": action, "over": over, "date": date_str})
-                extra = f"\nQuá giờ {over} phút!"
+
             data[user_id]["ongoing"] = None
         save_data(data)
 
         await update.message.reply_text(
-            f"{username}\n🕐 {time_str} → {text}\n\nThành Công / 成功",
+            f"👤 {username}\n🕐 {time_str} → {text}",
             reply_markup=reply_markup
         )
         return
@@ -86,68 +86,52 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data[user_id]["ongoing"] = {"action": text, "time": now.isoformat()}
         save_data(data)
         await update.message.reply_text(
-            f"{username}\n🕐 {time_str} → {text}\n\nThành Công / 成功",
+            f"👤 {username}\n🕐 {time_str} → {text}",
             reply_markup=reply_markup
         )
         return
 
     if text == "/thongke":
-        await thongke_command(update, context)
+        await thongke(update, context)
     elif text == "/qua":
-        await qua_command(update, context)
+        await qua(update, context)
 
-async def thongke_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    today = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
-    lines = [f"Thống kê chi tiết hôm nay ({today[8:10]}/{today[5:7]}/{today[:4]})\n"]
-    total_today = 0
-    for user_id, info in data.items():
+async def thongke(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    today = datetime.now(vietnam_tz).strftime("%d/%m")
+    lines = [f"Thống kê hôm nay {today}\n"]
+    total = 0
+    for info in data.values():
         name = info["name"]
-        lines.append(f"{name}")
-        user_today = 0
-        for action, counts in info["actions"].items():
-            today_c = counts.get("today", 0)
-            total_c = counts.get("total", 0)
-            lines.append(f"   {action} → {today_c} lần (tổng {total_c})")
-            user_today += today_c
-        lines.append(f"   → Tổng hôm nay: {user_today} lần\n")
-        total_today += user_today
-    lines.append(f"TỔNG CỘNG: {total_today} lần")
-    await update.message.reply_text("\n".join(lines) if data else "Chưa có dữ liệu")
+        lines.append(f"👤 {name}")
+        day_count = 0
+        for action, c in info.get("actions", {}).items():
+            cnt = c.get("today", 0)
+            lines.append(f"   {action} → {cnt} lần")
+            day_count += cnt
+        lines.append(f"   → Tổng: {day_count} lần\n")
+        total += day_count
+    lines.append(f"TỔNG CỘNG: {total} lần")
+    await update.message.reply_text("\n".join(lines) if total > 0 else "Chưa có dữ liệu")
 
-async def qua_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    today = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
-    lines = [f"Cảnh báo quá giờ hôm nay ({today[8:10]}/{today[5:7]})\n"]
+async def qua(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lines = ["Cảnh báo quá giờ hôm nay\n"]
     has = False
-    for user_id, info in data.items():
-        name = info["name"]
-        temp = []
+    for info in data.values():
         if info.get("ongoing"):
             start = datetime.fromisoformat(info["ongoing"]["time"])
             mins = int((datetime.now(vietnam_tz) - start).total_seconds() / 60)
             limit = TIME_LIMIT.get(info["ongoing"]["action"], 15)
             if mins > limit:
-                temp.append(f"   {info['ongoing']['action']} → quá {mins - limit} phút (đang đi)")
-
-        over_today = [o for o in info.get("overtimes", []) if o["date"] == today]
-        for o in set([o["action"] for o in over_today]):
-            count = len([x for x in over_today if x["action"] == o])
-            temp.append(f"   {o} → quá giờ {count} lần")
-
-        if temp:
-            has = True
-            lines.append(f"{name}")
-            lines.extend(temp)
-            lines.append("")
-
-    if not has:
-        lines.append("Hôm nay mọi người đều đúng giờ!")
-    await update.message.reply_text("\n".join(lines))
+                has = True
+                lines.append(f"👤 {info['name']}")
+                lines.append(f"   {info['ongoing']['action']} → quá {mins-limit} phút")
+    await update.message.reply_text("\n".join(lines) if has else "Mọi người đều đúng giờ!")
 
 def main():
     app = Application.builder().token(TOKEN).concurrent_updates(True).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("thongke", thongke_command))
-    app.add_handler(CommandHandler("qua", qua_command))
+    app.add_handler(CommandHandler("thongke", thongke))
+    app.add_handler(CommandHandler("qua", qua))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     port = int(os.environ.get("PORT", 10000))
