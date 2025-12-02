@@ -51,8 +51,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Xử lý quay lại
     if text == "Đã quay lại / 回来了" and data[uid].get("ongoing"):
-        start = datetime.fromisoformat(data[uid]["ongoing"]["time"])
-        mins = int((now - start).total_seconds() / 60)
+        start_time = datetime.fromisoformat(data[uid]["ongoing"]["time"])
+        mins = int((now - start_time).total_seconds() / 60)
         action = data[uid]["ongoing"]["action"]
         limit = TIME_LIMIT.get(action, 15)
         if action not in data[uid]["actions"]:
@@ -69,9 +69,9 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data[uid]["ongoing"] = {"action": text, "time": now.isoformat()}
         save_data(data)
 
-    # ← ĐÚNG 100% NHƯ BẠN YÊU CẦU: CÓ 👤 + 🕐 + 🤖✅
+    # ← ĐÚNG 100% NHƯ BẠN MUỐN: 3 DÒNG HOÀN HẢO
     await update.message.reply_text(
-        f"Người {name}\nGiờ {time} → {text}\nRobot Thành Công / 成功 Checkmark",
+        f"👤 {name}\n🕐 {time} → {text}\n🤖Thành Công / 成功 ✅",
         reply_markup=kb
     )
 
@@ -81,11 +81,12 @@ async def thongke(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = 0
     for v in data.values():
         name = v["name"]
-        cnt = sum(c.get("today",0) for c in v.get("actions", {}).values())
-        if cnt:
-            lines.append(f"Người {name} → {cnt} lần\n")
+        cnt = sum(c.get("today",0) for c in v.get("actions",{}).values())
+        if cnt > 0:
+            lines.append(f"👤 {name} → {cnt} lần\n")
             total += cnt
-    lines.append(f"TỔNG CỘNG: {total} lần")
+    if total > 0:
+        lines.append(f"TỔNG CỘNG: {total} lần")
     await update.message.reply_text("\n".join(lines) if total else "Chưa có dữ liệu hôm nay")
 
 async def qua(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -98,7 +99,7 @@ async def qua(update: Update, context: ContextTypes.DEFAULT_TYPE):
             limit = TIME_LIMIT.get(v["ongoing"]["action"], 15)
             if mins > limit:
                 has = True
-                lines.append(f"Người {v['name']}\n {v['ongoing']['action']} → quá {mins-limit} phút\n")
+                lines.append(f"👤 {v['name']}\n   {v['ongoing']['action']} → quá {mins-limit} phút\n")
     await update.message.reply_text("\n".join(lines) if has else "Mọi người đều đúng giờ!")
 
 def main():
@@ -108,8 +109,10 @@ def main():
     app.add_handler(CommandHandler("qua", qua))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
     port = int(os.environ.get("PORT", 10000))
-    app.run_webhook(listen="0.0.0.0", port=port, url_path=TOKEN,
-                    webhook_url=f"https://hary-2025-bot.onrender.com/{TOKEN}")
+    app.run_webhook(
+        listen="0.0.0.0", port=port, url_path=TOKEN,
+        webhook_url=f"https://hary-2025-bot.onrender.com/{TOKEN}"
+    )
 
 if __name__ == "__main__":
     main()
