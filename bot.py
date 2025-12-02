@@ -35,7 +35,7 @@ kb = ReplyKeyboardMarkup([
 ], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Chọn hành động của bạn", reply_markup=kb)
+    await update.message.reply_text("Chọn hành động", reply_markup=kb)
 
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -69,7 +69,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data[uid]["ongoing"] = {"action": text, "time": now.isoformat()}
         save_data(data)
 
-    # ← ĐÚNG 100% NHƯ BẠN YÊU CẦU: 3 DÒNG + EMOJI CHUẨN
+    # ← ĐÚNG 100% NHƯ MẪU BẠN GỬI: 3 DÒNG + EMOJI CHUẨN
     await update.message.reply_text(
         f"Người {name}\nGiờ {time} → {text}\nRobot Thành Công / 成功 Checkmark",
         reply_markup=kb
@@ -83,11 +83,10 @@ async def thongke(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = v["name"]
         cnt = sum(c.get("today",0) for c in v.get("actions", {}).values())
         if cnt:
-            lines.append(f"{name} → {cnt} lần\n")
+            lines.append(f"Người {name} → {cnt} lần\n")
             total += cnt
-    if total:
-        lines.append(f"TỔNG CỘNG: {total} lần")
-    await update.message.reply_text("\n".join(lines) if total else "Chưa có dữ liệu hôm nay")
+    lines.append(f"TỔNG CỘNG: {total} lần")
+    await update.message.reply_text("\n".join(lines) if total else "Chưa có dữ liệu")
 
 async def qua(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lines = ["Cảnh báo quá giờ hiện tại\n"]
@@ -99,7 +98,7 @@ async def qua(update: Update, context: ContextTypes.DEFAULT_TYPE):
             limit = TIME_LIMIT.get(v["ongoing"]["action"], 15)
             if mins > limit:
                 has = True
-                lines.append(f"{v['name']}\n {v['ongoing']['action']} → quá {mins-limit} phút\n")
+                lines.append(f"Người {v['name']}\n {v['ongoing']['action']} → quá {mins-limit} phút\n")
     await update.message.reply_text("\n".join(lines) if has else "Mọi người đều đúng giờ!")
 
 def main():
