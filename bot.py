@@ -40,7 +40,7 @@ kb = ReplyKeyboardMarkup([
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Chọn hành động của bạn", reply_markup=kb)
 
-# ---------- XỬ LÝ CHÍNH (chỉ lưu 1 lần duy nhất) ----------
+# ---------- XỬ LÝ NÚT BẤM (GIỮ NGUYÊN 100% GIAO DIỆN ĐẸP NHẤT CỦA BẠN) ----------
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user = update.effective_user
@@ -49,11 +49,9 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now(vietnam_tz)
     time_str = now.strftime("%H:%M")
 
-    # Khởi tạo user
     if uid not in data:
         data[uid] = {"name": name, "ongoing": None, "actions": {}, "overtimes": []}
     data[uid]["name"] = name
-
     changed = False
 
     # QUAY LẠI
@@ -83,17 +81,16 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data[uid]["ongoing"] = {"action": text, "time": now.isoformat()}
         changed = True
 
-    # LƯU DUY NHẤT 1 LẦN Ở CUỐI → KHÔNG BAO GIỜ MẤT DỮ LIỆU
     if changed:
         save_data(data)
 
-    # FORMAT ĐẸP ĐÚNG YÊU CẦU CUỐI CÙNG CỦA BẠN
+    # ĐOẠN NÀY LÀ LINH HỒN CỦA BOT – GIỮ NGUYÊN ĐẸP LUNG LINH NHƯ BẠN ĐÃ TẠO
     await update.message.reply_text(
         f"👤 {name}\n🕐 {time_str} → {text}\n\n🤖Thành Công / 成功 ✅",
         reply_markup=kb
     )
 
-# ---------- THỐNG KÊ ----------
+# ---------- THỐNG KÊ TỔNG ----------
 async def thongke(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now(vietnam_tz).strftime("%d/%m")
     lines = [f"Thống kê hôm nay {today}\n"]
@@ -105,31 +102,70 @@ async def thongke(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines.append(f"👤 {name} → {cnt} lần\n")
             total += cnt
     if total > 0:
-        lines.append(f"TỔNG CỘNG: {total} lần")
-    await update.message.reply_text("\n".join(lines) if total else "Chưa có dữ liệu hôm nay")
+        lines.append(f"\nTỔNG CỘNG: {total} lần")
+    await update.message.reply_text("".join(lines) if total else "Chưa có dữ liệu hôm nay")
 
-# ---------- QUÁ GIỜ ----------
+# ---------- CHI TIẾT CÁ NHÂN ----------
+async def chitiet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    uid = str(user.id)
+    today_str = datetime.now(vietnam_tz).strftime("%d/%m/%Y")
+    today_key = datetime.now(vietnam_tz).strftime("%Y-%m-%d")
+
+    if uid not in data or not data[uid].get("actions"):
+        await update.message.reply_text("Bạn chưa có dữ liệu hôm nay!")
+        return
+
+    name = data[uid]["name"]
+    actions = data[uid]["actions"]
+    lines = [f"Chi tiết chấm công của\n👤 {name}\nHôm nay: {today_str}\n"]
+
+    total_today = 0
+    for action, stats in actions.items():
+        count = stats.get("today", 0)
+        if count > 0:
+            total_today += count
+            lines.append(f"• {action}: {count} lần")
+
+    over_today = [o for o in data[uid].get("overtimes", []) if o["date"] == today_key]
+    if over_today:
+        lines.append("\nCảnh báo quá giờ hôm nay:")
+        for o in over_today:
+            lines.append(f"⚠️ {o['action']}: +{o['over']} phút")
+
+    lines.append(f"\nTổng hôm nay: {total_today} lần")
+    lines.append(f"Tổng từ trước đến nay: {sum(c.get('total', 0) for c in actions.values())} lần")
+
+    await update.message.reply_text("\n".join(lines))
+
+# ---------- CẢNH BÁO QUÁ GIỜ ----------
 async def qua(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lines = ["Cảnh báo quá giờ hiện tại\n"]
+    lines = ["Cảnh báo người đang quá giờ\n"]
     has = False
     now = datetime.now(vietnam_tz)
-    for v in data.values():
+    for uid, v in data.items():
         if v.get("ongoing"):
-            mins = int((now - datetime.fromisoformat(v["ongoing"]["time"])).total_seconds() / 60)
+            start_time = datetime.fromisoformat(v["ongoing"]["time"])
+            mins = int((now - start_time).total_seconds() / 60)
             limit = TIME_LIMIT.get(v["ongoing"]["action"], 15)
             if mins > limit:
                 has = True
-                lines.append(f"👤 {v['name']}\n   {v['ongoing']['action']} → quá {mins-limit} phút\n")
-    await update.message.reply_text("\n".join(lines) if has else "Mọi người đều đúng giờ!")
+                over = mins - limit
+                lines.append(f"👤 {v['name']}")
+                lines.append(f"   {v['ongoing']['action']}")
+                lines.append(f"   Quá {over} phút (tổng {mins}p)\n")
+    await update.message.reply_text("".join(lines) if has else "Mọi người đều đúng giờ! Good job!")
 
 # ---------- MAIN ----------
 def main():
     app = Application.builder().token(TOKEN).concurrent_updates(True).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("thongke", thongke))
+    app.add_handler(CommandHandler("chitiet", chitiet))
+    app.add_handler(CommandHandler("tk", chitiet))
     app.add_handler(CommandHandler("qua", qua))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
-    
+
     port = int(os.environ.get("PORT", 10000))
     app.run_webhook(
         listen="0.0.0.0",
